@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Pacientes</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      padding: 30px;
+    }
+
+    h1, h2 {
+      color: #333;
+    }
+
+    form {
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px #ccc;
+      max-width: 500px;
+      margin-bottom: 30px;
+    }
+
+    input, select {
+      width: 100%;
+      margin-bottom: 10px;
+      padding: 10px;
+    }
+
+    button {
+      background-color: #28a745;
+      color: white;
+      padding: 10px;
+      width: 100%;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    button:hover {
+      background-color: #218838;
+    }
+
+    .pacientes-lista {
+      max-width: 800px;
+    }
+
+    .pacientes-lista ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .pacientes-lista li {
+      background: #fff;
+      margin-bottom: 10px;
+      padding: 10px;
+      border-left: 4px solid #007bff;
+      transition: background 0.3s;
+    }
+
+    .pacientes-lista li:hover {
+      background: #f1f9ff;
+    }
+
+    .eliminar-btn {
+      background-color: #dc3545;
+      margin-top: 5px;
+      width: auto;
+      padding: 5px 10px;
+      border-radius: 3px;
+      color: white;
+      cursor: pointer;
+    }
+
+    .eliminar-btn:hover {
+      background-color: #c82333;
+    }
+
+    #cargando {
+      font-style: italic;
+      color: #555;
+    }
+
+    #btnCargarMas {
+      background-color: #007bff;
+      color: white;
+      width: auto;
+      padding: 8px 15px;
+      margin-top: 10px;
+      border-radius: 5px;
+    }
+
+    #btnCargarMas:hover {
+      background-color: #0056b3;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Registro de Paciente</h1>
+  
+  <form id="formPaciente">
+    <input type="number" name="edad" placeholder="Edad" required />
+    <select name="sexo" required>
+      <option value="">Sexo</option>
+      <option value="M">Masculino</option>
+      <option value="F">Femenino</option>
+    </select>
+    <input type="number" name="presion_sistolica" placeholder="Presión sistólica" required />
+    <input type="number" name="presion_diastolica" placeholder="Presión diastólica" required />
+    <input type="number" name="colesterol" placeholder="Colesterol" required />
+    <input type="number" name="glucosa" placeholder="Glucosa" required />
+    <input type="number" step="0.1" name="imc" placeholder="IMC" required />
+    <input type="number" name="tabaquismo" placeholder="Tabaquismo (0/1)" required />
+    <input type="number" name="actividad_fisica" placeholder="Actividad física (0-3)" required />
+    <input type="number" name="historial_familiar" placeholder="Historial familiar (0/1)" required />
+    <input type="text" name="enfermedad" placeholder="Enfermedad" required />
+    <input type="text" name="sintomas" placeholder="Síntomas (separados por coma)" required />
+    <button type="submit">Guardar paciente</button>
+  </form>
+
+  <div class="pacientes-lista">
+    <h2>Lista de Pacientes</h2>
+    <button id="btnCargar">Ver pacientes</button>
+    <p id="cargando"></p>
+    <ul id="listaPacientes"></ul>
+    <button id="btnCargarMas" style="display:none;">Cargar más</button>
+  </div>
+
+  <script>
+    const form = document.getElementById('formPaciente');
+    const lista = document.getElementById('listaPacientes');
+    const btnCargar = document.getElementById('btnCargar');
+    const btnCargarMas = document.getElementById('btnCargarMas');
+    const cargando = document.getElementById('cargando');
+
+    let pacientes = [];
+    let pagina = 0;
+    const porPagina = 200;
+
+    // === Crear paciente ===
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(form);
+      const data = Object.fromEntries(formData.entries());
+
+      // Convertir tipos numéricos
+      for (const key in data) {
+        if (['edad','presion_sistolica','presion_diastolica','colesterol','glucosa','tabaquismo','actividad_fisica','historial_familiar'].includes(key))
+          data[key] = parseInt(data[key]);
+        if (key === 'imc') data[key] = parseFloat(data[key]);
+      }
+
+      try {
+        const res = await fetch('http://localhost:3000/pacientes', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        await res.json();
+        alert('✅ Paciente guardado correctamente');
+        form.reset();
+        pagina = 0;
+        cargarPacientes(true);
+      } catch {
+        alert('❌ Error al guardar paciente');
+      }
+    });
+
+    // === Cargar pacientes (por páginas) ===
+    async function cargarPacientes(reset = false) {
+      if (reset) {
+        lista.innerHTML = '';
+        pacientes = [];
+        pagina = 0;
+      }
+
+      cargando.textContent = 'Cargando pacientes...';
+      btnCargarMas.style.display = 'none';
+
+      try {
+        const res = await fetch('http://localhost:3000/pacientes');
+        const data = await res.json();
+
+        pacientes = data;
+        mostrarPagina();
+
+        cargando.textContent = `Mostrando ${Math.min((pagina + 1) * porPagina, pacientes.length)} de ${pacientes.length} pacientes`;
+        if ((pagina + 1) * porPagina < pacientes.length) btnCargarMas.style.display = 'inline-block';
+      } catch {
+        cargando.textContent = '❌ Error al cargar pacientes';
+      }
+    }
+
+    // === Mostrar una página ===
+    function mostrarPagina() {
+      const inicio = pagina * porPagina;
+      const fin = inicio + porPagina;
+      const visibles = pacientes.slice(inicio, fin);
+
+      visibles.forEach(p => {
+        const li = document.createElement('li');
+        li.dataset.id = p.id;
+        li.innerHTML = `
+          <strong>ID: ${p.id} - ${p.enfermedad}</strong><br>
+          Edad: ${p.edad} - Sexo: ${p.sexo}<br>
+          Presión: ${p.presion_sistolica}/${p.presion_diastolica} - Colesterol: ${p.colesterol}<br>
+          Glucosa: ${p.glucosa} - IMC: ${p.imc}<br>
+          Tabaquismo: ${p.tabaquismo} - Actividad: ${p.actividad_fisica} - Historial familiar: ${p.historial_familiar}<br>
+          Síntomas: ${p.sintomas}<br>
+          <button class="eliminar-btn" onclick="eliminarPaciente(${p.id})">Eliminar</button>
+        `;
+        lista.appendChild(li);
+      });
+    }
+
+    // === Cargar más pacientes ===
+    btnCargarMas.addEventListener('click', () => {
+      pagina++;
+      mostrarPagina();
+      cargando.textContent = `Mostrando ${Math.min((pagina + 1) * porPagina, pacientes.length)} de ${pacientes.length} pacientes`;
+      if ((pagina + 1) * porPagina >= pacientes.length) btnCargarMas.style.display = 'none';
+    });
+
+    // === Eliminar paciente ===
+    async function eliminarPaciente(id) {
+      if (!confirm('¿Seguro que deseas eliminar este paciente?')) return;
+      try {
+        await fetch(`http://localhost:3000/pacientes/${id}`, { method: 'DELETE' });
+        const li = document.querySelector(`li[data-id="${id}"]`);
+        if (li) li.remove();
+        pacientes = pacientes.filter(p => p.id !== id);
+        cargando.textContent = `Mostrando ${lista.children.length} de ${pacientes.length} pacientes`;
+      } catch {
+        alert('❌ Error al eliminar paciente');
+      }
+    }
+
+    btnCargar.addEventListener('click', () => cargarPacientes(true));
+  </script>
+
+</body>
+</html>
